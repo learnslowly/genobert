@@ -1,0 +1,116 @@
+#!/bin/bash
+#SBATCH --output=logs/test_pretrain_%j.log
+#SBATCH --time=1:00:00
+#SBATCH --job-name=genobert_test
+
+# ============================================================
+# Load Credentials
+# ============================================================
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}/job"
+if [[ -f "${SCRIPT_DIR}/credentials.sh" ]]; then
+    source "${SCRIPT_DIR}/credentials.sh"
+else
+    echo "ERROR: credentials.sh not found."
+    echo "Copy credentials.sh.template to credentials.sh and fill in your settings."
+    exit 1
+fi
+
+# ============================================================
+# SLURM Configuration (from credentials.sh)
+# ============================================================
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION_GPU}
+#SBATCH --gres=gpu:2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+
+# Email notifications (from credentials.sh)
+#SBATCH --mail-user=${SLURM_EMAIL}
+#SBATCH --mail-type=${SLURM_MAIL_TYPE}
+
+# ============================================================
+# Environment Setup (from credentials.sh)
+# ============================================================
+if [[ -n "${CONDA_PATH}" ]]; then
+    source "${CONDA_PATH}/etc/profile.d/conda.sh"
+    conda activate "${CONDA_ENV:-genobert}"
+fi
+
+# ============================================================
+# Configuration
+# ============================================================
+# Required: Config file (passed as first argument)
+CONFIG_FILE="${1:-configs/example_pretrain.yaml}"
+
+# Required: Checkpoint path (passed as second argument)
+CHECKPOINT="${2:-}"
+
+# Optional: Mask probabilities to test (space-separated)
+MASK_PROBS="${3:-0.05 0.15 0.5}"
+
+# Optional: Output file
+OUTPUT_FILE="${4:-}"
+
+# ============================================================
+# Validate Arguments
+# ============================================================
+if [[ -z "${CHECKPOINT}" ]]; then
+    echo "ERROR: Checkpoint path required"
+    echo "Usage: sbatch job/04_test_pretrain.batch <config.yaml> <checkpoint.pth> [mask_probs] [output.json]"
+    echo ""
+    echo "Examples:"
+    echo "  sbatch --partition=gpu2 --nodes=1 --ntasks=2 job/04_test_pretrain.batch configs/1KGP_chr22_ALL.yaml checkpoints_pt/1KGP_ALL_chr22/checkpoint_epoch_100.pth"
+    echo "  sbatch --partition=gpu2 --nodes=1 --ntasks=2 job/04_test_pretrain.batch configs/1KGP_chr22_ALL.yaml checkpoints_pt/model.pth '0.05 0.15 0.5' results.json"
+    exit 1
+fi
+
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+    echo "ERROR: Config file not found: ${CONFIG_FILE}"
+    exit 1
+fi
+
+if [[ ! -f "${CHECKPOINT}" ]]; then
+    echo "ERROR: Checkpoint not found: ${CHECKPOINT}"
+    exit 1
+fi
+
+# ============================================================
+# Run Testing
+# ============================================================
+echo "============================================================"
+echo "GenoBERT Testing"
+echo "============================================================"
+echo "Config: ${CONFIG_FILE}"
+echo "Checkpoint: ${CHECKPOINT}"
+echo "Mask probs: ${MASK_PROBS}"
+echo "Nodes: ${SLURM_NNODES:-1}"
+echo "Tasks: ${SLURM_NTASKS:-1}"
+echo "============================================================"
+
+# Set up distributed environment for SLURM
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=${MASTER_PORT:-29500}
+export WORLD_SIZE=${SLURM_NTASKS}
+
+echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
+echo "World size: ${WORLD_SIZE}"
+
+# Build command
+CMD="python test_pretrain.py --configFile ${CONFIG_FILE} --checkpoint ${CHECKPOINT}"
+
+# Add mask probabilities
+if [[ -n "${MASK_PROBS}" ]]; then
+    CMD="${CMD} --maskProb ${MASK_PROBS}"
+fi
+
+# Add output file if specified
+if [[ -n "${OUTPUT_FILE}" ]]; then
+    CMD="${CMD} --output ${OUTPUT_FILE}"
+fi
+
+echo "Running: srun ${CMD}"
+srun ${CMD}
+
+echo ""
+echo "Testing complete!"

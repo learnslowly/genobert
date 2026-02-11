@@ -1,0 +1,91 @@
+#!/bin/bash
+#SBATCH --output=logs/data_prep_%A_%a.log
+#SBATCH --time=1:00:00
+#SBATCH --job-name=genobert_prep
+
+# ============================================================
+# Load Credentials
+# ============================================================
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}/job"
+if [[ -f "${SCRIPT_DIR}/credentials.sh" ]]; then
+    source "${SCRIPT_DIR}/credentials.sh"
+else
+    echo "ERROR: credentials.sh not found."
+    echo "Copy credentials.sh.template to credentials.sh and fill in your settings."
+    exit 1
+fi
+
+# ============================================================
+# SLURM Configuration (from credentials.sh)
+# ============================================================
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION_CPU}
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+
+# Array job: process genes in parallel
+# Modify --array to match number of genes / genes per task
+#SBATCH --array=0-199%50  # 200 tasks, max 50 concurrent
+
+# Email notifications (from credentials.sh)
+#SBATCH --mail-user=${SLURM_EMAIL}
+#SBATCH --mail-type=${SLURM_MAIL_TYPE}
+
+# ============================================================
+# Environment Setup (from credentials.sh)
+# ============================================================
+if [[ -n "${CONDA_PATH}" ]]; then
+    source "${CONDA_PATH}/etc/profile.d/conda.sh"
+    conda activate "${CONDA_ENV:-genobert}"
+fi
+
+# ============================================================
+# Configuration - MODIFY THESE
+# ============================================================
+GENOTYPE_DS="1KGP"
+GENE_DS="GEUVADIS"
+CHR=22
+RACE="EUR"
+SPLIT="train"
+
+# Population for gene regions (may differ from RACE for genotypes)
+# Gene files available: EUR, GEU
+GENE_POP="EUR"
+
+# Path to VCF file
+# Pattern: {VCF_DIR}/split/{ds}_chr{chr}_{race}_{split}.vcf.gz
+VCF_PATH="${VCF_DIR:-<PATH_TO_VCF>}/split/${GENOTYPE_DS}_chr${CHR}_${RACE}_${SPLIT}.vcf.gz"
+
+# Path to gene expression directory (for gene regions)
+# Pattern: {GENE_EXP_DIR}/{gene_pop}/{ds}_chr{chr}_{gene_pop}_{split}_gene_exp_peer_adjusted.txt
+GENE_EXP_PATH="${GENE_EXP_DIR:-<PATH_TO_GENE_REGIONS>}"
+
+# Output directory (includes dataset subdirectory)
+OUTPUT_DIR="./res_pt/${GENOTYPE_DS}"
+
+# Total number of array tasks (must match --array above)
+TOTAL_NODES=200
+
+# ============================================================
+# Run Data Preparation
+# ============================================================
+echo "Processing node $SLURM_ARRAY_TASK_ID of $TOTAL_NODES"
+
+python pretrain_data_prep.py \
+    --genotype_ds $GENOTYPE_DS \
+    --gene_ds $GENE_DS \
+    --chr $CHR \
+    --race $RACE \
+    --gene_pop $GENE_POP \
+    --split $SPLIT \
+    --node_id $SLURM_ARRAY_TASK_ID \
+    --total_nodes $TOTAL_NODES \
+    --pretrain_vcf $VCF_PATH \
+    --gene_exp_path $GENE_EXP_PATH \
+    --output_dir $OUTPUT_DIR \
+    --model_input_width 258 \
+    --overlap_size 8 \
+    --min_snps 32 \
+    --overlap_threshold 0.33 \
+    --num_workers 4 \
+    --verbose

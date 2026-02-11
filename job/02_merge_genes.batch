@@ -1,0 +1,100 @@
+#!/bin/bash
+#SBATCH --output=logs/data_merge_%j.log
+#SBATCH --time=1:00:00
+#SBATCH --job-name=genobert_merge
+
+# ============================================================
+# Load Credentials
+# ============================================================
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}/job"
+if [[ -f "${SCRIPT_DIR}/credentials.sh" ]]; then
+    source "${SCRIPT_DIR}/credentials.sh"
+else
+    echo "ERROR: credentials.sh not found."
+    echo "Copy credentials.sh.template to credentials.sh and fill in your settings."
+    exit 1
+fi
+
+# ============================================================
+# SLURM Configuration (from credentials.sh)
+# ============================================================
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION_CPU}
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+
+# Email notifications (from credentials.sh)
+#SBATCH --mail-user=${SLURM_EMAIL}
+#SBATCH --mail-type=${SLURM_MAIL_TYPE}
+
+# ============================================================
+# Environment Setup (from credentials.sh)
+# ============================================================
+if [[ -n "${CONDA_PATH}" ]]; then
+    source "${CONDA_PATH}/etc/profile.d/conda.sh"
+    conda activate "${CONDA_ENV:-genobert}"
+fi
+
+# ============================================================
+# Configuration - MODIFY THESE (must match 01_data_prep_array.batch)
+# ============================================================
+GENOTYPE_DS="1KGP"
+CHR=22
+RACE="EUR"
+SEG_LEN=258
+OVERLAP=8
+OUTPUT_DIR="./res_pt/${GENOTYPE_DS}"
+
+# Optional: Gene list file for filtered pretraining
+# Leave empty to merge ALL genes
+GENES_LIST_FILE=""
+# GENES_LIST_FILE="configs/gene_lists/bone_genes.txt"
+
+# ============================================================
+# Merge Per-Gene Files
+# ============================================================
+# Run this AFTER the array job completes to merge all per-gene files
+# into a single file with deduplication and shuffling
+
+echo "Merging per-gene files..."
+echo "  Dataset: $GENOTYPE_DS"
+echo "  Chromosome: $CHR"
+echo "  Population: $RACE"
+
+# Build prefix
+PREFIX="${GENOTYPE_DS}_chr${CHR}_${RACE}_seg${SEG_LEN}_overlap${OVERLAP}"
+
+# Merge train split
+echo ""
+echo "=== Processing train split ==="
+CMD="python merge_genes.py \
+    --input_dir ${OUTPUT_DIR}/train \
+    --output_dir ${OUTPUT_DIR}/train \
+    --prefix ${PREFIX}_train \
+    --apply_dedup \
+    --shuffle_seed 42"
+
+if [[ -n "${GENES_LIST_FILE}" ]]; then
+    CMD="${CMD} --genes_list_file ${GENES_LIST_FILE}"
+fi
+
+eval ${CMD}
+
+# Merge val split
+echo ""
+echo "=== Processing val split ==="
+CMD="python merge_genes.py \
+    --input_dir ${OUTPUT_DIR}/val \
+    --output_dir ${OUTPUT_DIR}/val \
+    --prefix ${PREFIX}_val \
+    --apply_dedup \
+    --shuffle_seed 42"
+
+if [[ -n "${GENES_LIST_FILE}" ]]; then
+    CMD="${CMD} --genes_list_file ${GENES_LIST_FILE}"
+fi
+
+eval ${CMD}
+
+echo ""
+echo "Merge complete!"

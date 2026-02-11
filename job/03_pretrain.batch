@@ -1,0 +1,88 @@
+#!/bin/bash
+#SBATCH --output=logs/pretrain_%j.log
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name=genobert_pt
+
+# ============================================================
+# Load Credentials
+# ============================================================
+SCRIPT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}/job"
+if [[ -f "${SCRIPT_DIR}/credentials.sh" ]]; then
+    source "${SCRIPT_DIR}/credentials.sh"
+else
+    echo "ERROR: credentials.sh not found."
+    echo "Copy credentials.sh.template to credentials.sh and fill in your settings."
+    exit 1
+fi
+
+# ============================================================
+# SLURM Configuration (from credentials.sh)
+# ============================================================
+#SBATCH --account=${SLURM_ACCOUNT}
+#SBATCH --partition=${SLURM_PARTITION_GPU}
+
+# Multi-node DDP configuration
+#SBATCH --nodes=8
+#SBATCH --ntasks=16              # Total number of GPUs
+#SBATCH --ntasks-per-node=2      # GPUs per node
+#SBATCH --cpus-per-task=24       # CPUs per GPU
+#SBATCH --gpus-per-task=1
+
+# Email notifications (from credentials.sh)
+#SBATCH --mail-user=${SLURM_EMAIL}
+#SBATCH --mail-type=${SLURM_MAIL_TYPE}
+
+# ============================================================
+# Environment Setup (from credentials.sh)
+# ============================================================
+if [[ -n "${CONDA_PATH}" ]]; then
+    source "${CONDA_PATH}/etc/profile.d/conda.sh"
+    conda activate "${CONDA_ENV:-genobert}"
+fi
+
+# Set the config file
+CONFIG_FILE="${1:-configs/example_pretrain.yaml}"
+
+# ============================================================
+# DDP Configuration
+# ============================================================
+export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+export MASTER_PORT=12340
+
+# NCCL settings for multi-node training
+export NCCL_DEBUG=WARN
+export NCCL_IB_DISABLE=0
+export NCCL_SOCKET_IFNAME=^lo
+
+# Cache directory for Triton
+export TRITON_CACHE_DIR=/tmp/$USER/triton_cache
+mkdir -p $TRITON_CACHE_DIR
+
+# ============================================================
+# Print Job Information
+# ============================================================
+starttime=$(date +'%Y-%m-%d %H:%M:%S')
+echo "======================================"
+echo "Job started at: $(date)"
+echo "JobID: $SLURM_JOB_ID"
+echo "Config: $CONFIG_FILE"
+echo "Nodes: $SLURM_NODELIST"
+echo "Master: $MASTER_ADDR:$MASTER_PORT"
+echo "Total GPUs: $SLURM_NTASKS"
+echo "======================================"
+
+# ============================================================
+# Launch Training
+# ============================================================
+srun --export=ALL --gpu-bind=closest python pretrain.py --configFile $CONFIG_FILE
+
+# ============================================================
+# Calculate Runtime
+# ============================================================
+endtime=$(date +'%Y-%m-%d %H:%M:%S')
+start_seconds=$(date --date="$starttime" +%s)
+end_seconds=$(date --date="$endtime" +%s)
+total_seconds=$((end_seconds - start_seconds))
+hours=$((total_seconds / 3600))
+minutes=$(((total_seconds % 3600) / 60))
+echo "Running time: ${hours}h ${minutes}m"

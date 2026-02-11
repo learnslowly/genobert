@@ -1,0 +1,84 @@
+# GenoBERT Pretraining Configuration Example
+# Copy this file and modify for your dataset
+
+# ================== Data Parameters ==================
+runId: 1KGP_EUR_chr22_PT  # Unique identifier for this run
+dataset: 1KGP  # Dataset name
+chromosome: 22
+population: EUR  # Population code - MUST match RACE used in data prep
+segLen: 258  # Segment length (model input width)
+overlap: 8  # Overlap between segments
+
+# Optional data parameters
+unique: True  # Remove duplicate segments in preprocessing
+hlaOnly: False  # HLA region only (chromosome 6)
+# genotypeDataset: 1KGP  # Override genotype dataset name if different from 'dataset'
+
+# Data directory paths
+resDir: ./res
+resPtDir: ./res_pt  # Data at: {resPtDir}/{dataset}/train/
+
+# ================== Vocabulary ==================
+vocabSize: 8
+padId: 7
+maskId: 0
+CLSId: 5
+SEPId: 6
+
+# ================== Model Architecture ==================
+# Core architecture
+embDim: 512  # Embedding dimension
+numHeads: 4  # Number of attention heads
+numLayers: 6  # Number of transformer layers
+weightSharing: 0  # 0: None; 1: Attention; 2: FFN; 3: Both
+dropoutRate: 0.0
+
+# Positional encoding
+enableBias: True  # Enable genomic position bias
+initBiasWeight: 0.0
+
+# Feed-forward network
+useCNNBottleneck: True  # Use CNN-based FFN
+bottleneckShape: 4  # FFN expansion factor
+cnnKernelSize: 3
+
+# Sparse attention (BigBird-like)
+sparseAttention: False  # Set to True for sparse attention
+localWinSize: 64  # Local window size for sparse attention
+globalAttentionIds: [0]  # Global attention token indices (e.g., CLS at position 0)
+
+# ================== Training Parameters ==================
+# Batch and data loading
+batchSize: 128
+numWorkers: 12
+persistentWorkers: True
+seed: 0
+
+# Optimizer
+learningRate: 0.0008
+weightDecay: 0.001
+
+# Learning rate schedule
+scheduler: cosineAnn  # 'cosineAnn' or 'stepLR'
+totalEpochs: 100
+warmupEpochs: 20
+cooldownEpochs: 0
+
+# Masking and loss
+maskProb: 0.5  # Probability of masking tokens
+sampling: normal  # 'normal' or 'upsampling'
+lossType: focalLoss  # 'crossEntropy', 'focalLoss', 'gatedFocalLoss', 'f1Loss'
+focalGamma: 2.0
+benchmarkAll: True  # Evaluate on all tokens vs only masked
+
+# Training options
+useMixedPrecision: False
+
+# Checkpointing
+checkpointPrefix: ""
+saveCheckpointFreq: 5
+
+# Logging (optional)
+useWandB: False
+wandbProject: GenoBERT
+WandBKey: ""  # Your WandB API key
