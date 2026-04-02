@@ -1,3 +1,4 @@
+[![Preprint](https://img.shields.io/badge/preprint-available-brightgreen)](https://arxiv.org/abs/2604.00058) &nbsp;
 # GenoBERT
 
 **GenoBERT: A Language Model for Accurate Genotype Imputation**
@@ -457,11 +458,14 @@ python merge_genes.py \
 ## Citation
 
 ```bibtex
-@article{genobert2024,
-  title={GenoBERT: A Language Model for Accurate Genotype Imputation},
-  author={...},
-  journal={...},
-  year={2024}
+@article{huang2026genobert,
+  title        = {GenoBERT: A Language Model for Accurate Genotype Imputation},
+  author       = {Huang, L. and others},
+  year         = {2026},
+  eprint       = {2604.00058},
+  archivePrefix= {arXiv},
+  primaryClass = {q-bio.GN},
+  doi          = {10.48550/arXiv.2604.00058}
 }
 ```
 
