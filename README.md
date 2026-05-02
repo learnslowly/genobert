@@ -40,8 +40,8 @@ GenoBERT adapts the ALBERT architecture for genomic sequences, treating each SNP
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/GenoBERT.git
-cd GenoBERT
+git clone https://github.com/learnslowly/genobert.git
+cd genobert
 
 # Install dependencies
 pip install -r requirements.txt
@@ -473,4 +473,4 @@ python merge_genes.py \
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License — see [LICENSE](./LICENSE) for details.
