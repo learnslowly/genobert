@@ -1,5 +1,5 @@
 [![Preprint](https://img.shields.io/badge/preprint-available-brightgreen)](https://arxiv.org/abs/2604.00058) &nbsp;
-[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/username/repo/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/learnslowly/genobert/blob/main/LICENSE)
 
 # GenoBERT
 
